@@ -138,17 +138,46 @@ export const setting = {
   rootPath: ''
 }
 
-export function codeFrameError (node, msg: string) {
-  let errMsg = ''
-  try {
-    errMsg = codeFrameColumns(setting.sourceCode, node && node.type && node.loc ? node.loc : node)
-  } catch (error) {
-    errMsg = 'failed to locate source'
+export class CodeFrameError extends Error {
+  constructor (node, msg: string, ...params) {
+    super(...params)
+
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, CodeFrameError)
+    }
+
+    let errMsg = ''
+    try {
+      errMsg = codeFrameColumns(setting.sourceCode, node && node.type && node.loc ? node.loc : node)
+    } catch (error) {
+      errMsg = 'failed to locate source'
+    }
+    const orig = Error.prepareStackTrace
+    Error.prepareStackTrace = function (_, stack) { return stack }
+    const err = new Error()
+    const stack: any = err.stack
+    Error.prepareStackTrace = orig
+    // stack[0]为当前函数, stack[1]为调用者，stack[2]为上层调用者
+    console.log('stack')
+    console.log(stack[0].getFileName())
+    return new Error(`
+    ${msg}
+    -----
+    ${errMsg}`)
   }
-  return new Error(`${msg}
-  -----
-  ${errMsg}`)
 }
+
+// export function codeFrameError (node, msg: string) {
+//   let errMsg = ''
+//   try {
+//     errMsg = codeFrameColumns(setting.sourceCode, node && node.type && node.loc ? node.loc : node)
+//   } catch (error) {
+//     errMsg = 'failed to locate source'
+//   }
+//   return new Error(`${msg}
+//   -----
+//   ${errMsg}`)
+// }
 
 // tslint:disable-next-line
 // eslint-disable-next-line camelcase

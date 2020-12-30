@@ -1,6 +1,6 @@
 import * as t from 'babel-types'
 import traverse, { NodePath, Visitor } from 'babel-traverse'
-import { buildImportStatement, codeFrameError, buildRender, buildBlockElement, parseCode } from './utils'
+import { buildImportStatement, CodeFrameError, buildRender, buildBlockElement, parseCode } from './utils'
 import { WXS } from './wxml'
 import { usedComponents } from './global'
 
@@ -146,7 +146,7 @@ function parsePage (
   if (arg.isObjectExpression() || arg.isIdentifier()) {
     //
   } else {
-    throw codeFrameError(arg.node, `${componentType || '组件'} 的第一个参数必须是一个对象或变量才能转换。`)
+    throw new CodeFrameError(arg.node, `${componentType || '组件'} 的第一个参数必须是一个对象或变量才能转换。`)
   }
 
   const wxsNames = new Set(wxses ? wxses.map(w => w.module) : [])

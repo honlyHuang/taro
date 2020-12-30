@@ -7,6 +7,7 @@ export default (ctx: IPluginContext) => {
       const Convertor = require('../../convertor').default
       const convertor = new Convertor(ctx.paths.appPath)
       convertor.run()
+      convertor.getError()
     }
   })
 }

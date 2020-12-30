@@ -3,7 +3,7 @@ import { parse } from 'himalaya-wxml'
 import * as t from 'babel-types'
 import { camelCase, cloneDeep } from 'lodash'
 import traverse, { NodePath, Visitor } from 'babel-traverse'
-import { buildTemplate, DEFAULT_Component_SET, buildImportStatement, buildBlockElement, parseCode, codeFrameError, isValidVarName } from './utils'
+import { buildTemplate, DEFAULT_Component_SET, buildImportStatement, buildBlockElement, parseCode, CodeFrameError, isValidVarName } from './utils'
 import { specialEvents } from './events'
 import { parseTemplate, parseModule } from './template'
 import { usedComponents, errors, globals, THIRD_PARTY_COMPONENTS } from './global'
@@ -156,6 +156,7 @@ export const createWxmlVistor = (
         // eslint-disable-next-line no-console
         console.log(`未知 wx 作用域属性： ${nodeName}，该属性会被移除掉。`)
         path.parentPath.remove()
+        throw new Error(`未知 wx 作用域属性： ${nodeName}，该属性会被移除掉。`)
       }
     }
   }
@@ -209,7 +210,7 @@ export const createWxmlVistor = (
               path.remove()
             }
           } else {
-            throw codeFrameError(slotValue, 'slot 的值必须是一个字符串')
+            throw new CodeFrameError(slotValue, 'slot 的值必须是一个字符串')
           }
         }
         const tagName = jsxName.node.name
@@ -220,7 +221,7 @@ export const createWxmlVistor = (
             if (nameAttr.node.value && t.isStringLiteral(nameAttr.node.value)) {
               slotName = nameAttr.node.value.value
             } else {
-              throw codeFrameError(jsxName.node, 'slot 的值必须是一个字符串')
+              throw new CodeFrameError(jsxName.node, 'slot 的值必须是一个字符串')
             }
           }
           const children = t.memberExpression(
@@ -415,7 +416,7 @@ function getWXS (attrs: t.JSXAttribute[], path: NodePath<t.JSXElement>, imports:
     traverse(ast, {
       CallExpression (path) {
         if (t.isIdentifier(path.node.callee, { name: 'getRegExp' })) {
-          console.warn(codeFrameError(path.node, '请使用 JavaScript 标准正则表达式把这个 getRegExp 函数重构。'))
+          console.warn(new CodeFrameError(path.node, '请使用 JavaScript 标准正则表达式把这个 getRegExp 函数重构。'))
         }
       }
     })
@@ -796,7 +797,7 @@ function parseAttribute (attr: Attribute) {
     if (key === 'class' && value.startsWith('[') && value.endsWith(']')) {
       value = value.slice(1, value.length - 1).replace(',', '')
       // eslint-disable-next-line no-console
-      console.log(codeFrameError(attr, 'Taro/React 不支持 class 传入数组，此写法可能无法得到正确的 class'))
+      console.log(new CodeFrameError(attr, 'Taro/React 不支持 class 传入数组，此写法可能无法得到正确的 class'))
     }
     const { type, content } = parseContent(value)
 

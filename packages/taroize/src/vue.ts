@@ -6,7 +6,7 @@ import { AllKindNode, Attribute, WX_IF, WX_ELSE_IF, WX_ELSE, WX_FOR, parseConten
 import { buildTemplateName, getWXMLsource } from './template'
 import * as fs from 'fs'
 import { relative, resolve } from 'path'
-import { setting, parseCode, buildImportStatement, codeFrameError } from './utils'
+import { setting, parseCode, buildImportStatement, CodeFrameError } from './utils'
 import { replaceIdentifier, replaceMemberExpression } from './script'
 import { kebabCase } from 'lodash'
 
@@ -399,7 +399,7 @@ function parseWXS (element: Element, imports: VueImport[]) {
     traverse(ast, {
       CallExpression (path) {
         if (t.isIdentifier(path.node.callee, { name: 'getRegExp' })) {
-          console.warn(codeFrameError(path.node, '请使用 JavaScript 标准正则表达式把这个 getRegExp 函数重构。'))
+          console.warn(new CodeFrameError(path.node, '请使用 JavaScript 标准正则表达式把这个 getRegExp 函数重构。'))
         }
       }
     })

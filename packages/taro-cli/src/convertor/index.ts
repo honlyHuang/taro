@@ -96,6 +96,21 @@ function processStyleImports (content: string, processFn: (a: string, b: string)
   }
 }
 
+// interface IErrorCollector {
+//   success: string[];
+//   error: [{
+//     url: [{
+//       msg?: string
+//       msgDetail?: string
+//     }]
+//   }]
+// }
+
+const errorCollector = {
+  success: [] as any,
+  error: [] as any
+}
+
 export default class Convertor {
   root: string
   convertRoot: string
@@ -152,6 +167,30 @@ export default class Convertor {
   }
 
   wxsIncrementId = incrementId()
+
+  setErrorCollector (type: string, url: string, msg?: string, msgDetail?: string) {
+    if (type === 'convert' || type === 'copy') {
+      errorCollector.success.push(url)
+    } else if (type === 'error') {
+      if (errorCollector.error[url]) {
+        errorCollector.error[url].push({
+          msg: msg || '',
+          msgDetail: msgDetail || ''
+        })
+      } else {
+        errorCollector.error.push({
+          [url]: [{
+            msg: msg || '',
+            msgDetail: msgDetail || ''
+          }]
+        })
+        console.log('error-Collector:')
+        errorCollector.error.map((item, index) => {
+          console.log(index)
+        })
+      }
+    }
+  }
 
   parseAst ({
     ast,
@@ -298,9 +337,11 @@ export default class Convertor {
                 const outputImagePath = self.getDistFilePath(sourceImagePath)
                 if (fs.existsSync(sourceImagePath)) {
                   self.copyFileToTaro(sourceImagePath, outputImagePath)
-                  printLog(processTypeEnum.COPY, '图片', self.generateShowPath(outputImagePath))
+                  self.printLog(processTypeEnum.COPY, '图片', self.generateShowPath(outputImagePath))
+                  // self.setErrorCollector(processTypeEnum.COPY, self.generateShowPath(outputImagePath))
                 } else if (!t.isBinaryExpression(astPath.parent) || astPath.parent.operator !== '+') {
-                  printLog(processTypeEnum.ERROR, '图片不存在', self.generateShowPath(sourceImagePath))
+                  self.printLog(processTypeEnum.ERROR, '图片不存在', self.generateShowPath(sourceImagePath))
+                  // self.setErrorCollector(processTypeEnum.ERROR, self.generateShowPath(sourceImagePath), '图片不存在')
                 }
                 if (astPath.parentPath.isVariableDeclarator()) {
                   astPath.replaceWith(t.callExpression(t.identifier('require'), [t.stringLiteral(imageRelativePath)]))
@@ -383,15 +424,19 @@ export default class Convertor {
         delete this.entryJSON.usingComponents
       }
 
-      printLog(processTypeEnum.CONVERT, '入口文件', this.generateShowPath(this.entryJSPath))
-      printLog(processTypeEnum.CONVERT, '入口配置', this.generateShowPath(this.entryJSONPath))
+      this.printLog(processTypeEnum.CONVERT, '入口文件', this.generateShowPath(this.entryJSPath))
+      // this.setErrorCollector(processTypeEnum.CONVERT, this.generateShowPath(this.entryJSPath), '入口文件')
+      this.printLog(processTypeEnum.CONVERT, '入口配置', this.generateShowPath(this.entryJSONPath))
+      // this.setErrorCollector(processTypeEnum.CONVERT, this.generateShowPath(this.entryJSONPath), '入口配置')
       if (fs.existsSync(this.entryStylePath)) {
         this.entryStyle = String(fs.readFileSync(this.entryStylePath))
-        printLog(processTypeEnum.CONVERT, '入口样式', this.generateShowPath(this.entryStylePath))
+        this.printLog(processTypeEnum.CONVERT, '入口样式', this.generateShowPath(this.entryStylePath))
+        // this.setErrorCollector(processTypeEnum.CONVERT, this.generateShowPath(this.entryStylePath), '入口样式')
       }
     } catch (err) {
       this.entryJSON = {}
       console.log(chalk.red(`app${this.fileTypes.CONFIG} 读取失败，请检查！`))
+      this.setErrorCollector(processTypeEnum.CONVERT, this.fileTypes.CONFIG, 'confog 文件找不到！')
       process.exit(1)
     }
   }
@@ -400,6 +445,7 @@ export default class Convertor {
     const pages = this.entryJSON.pages
     if (!pages || !pages.length) {
       console.log(chalk.red(`app${this.fileTypes.CONFIG} 配置有误，缺少页面相关配置`))
+      this.setErrorCollector(processTypeEnum.CONVERT, this.fileTypes.CONFIG, `app${this.fileTypes.CONFIG} 配置有误，缺少页面相关配置`)
       return
     }
     this.pages = new Set(pages)
@@ -462,7 +508,8 @@ export default class Convertor {
         })
         const jsCode = generateMinimalEscapeCode(ast)
         this.writeFileToTaro(outputFilePath, prettier.format(jsCode, prettierJSConfig))
-        printLog(processTypeEnum.COPY, 'JS 文件', this.generateShowPath(outputFilePath))
+        this.printLog(processTypeEnum.COPY, 'JS 文件', this.generateShowPath(outputFilePath))
+        this.setErrorCollector(processTypeEnum.COPY, this.generateShowPath(this.entryStylePath), 'JS 文件')
         this.hadBeenCopyedFiles.add(file)
         this.generateScriptFiles(scriptFiles)
       })
@@ -549,7 +596,7 @@ ${code}
       const jsCode = generateMinimalEscapeCode(ast)
       this.writeFileToTaro(entryDistJSPath, jsCode)
       this.writeFileToConfig(entryDistJSPath, entryJSON)
-      printLog(processTypeEnum.GENERATE, '入口文件', this.generateShowPath(entryDistJSPath))
+      this.printLog(processTypeEnum.GENERATE, '入口文件', this.generateShowPath(entryDistJSPath))
       if (this.entryStyle) {
         this.traverseStyle(this.entryStylePath, this.entryStyle)
       }
@@ -577,7 +624,7 @@ ${code}
           .forEach(iconPath => {
             const iconDistPath = this.getDistFilePath(iconPath)
             this.copyFileToTaro(iconPath, iconDistPath)
-            printLog(processTypeEnum.COPY, 'TabBar 图标', this.generateShowPath(iconDistPath))
+            this.printLog(processTypeEnum.COPY, 'TabBar 图标', this.generateShowPath(iconDistPath))
           })
       }
     }
@@ -590,7 +637,7 @@ ${code}
     if (fs.existsSync(customTabbarPath)) {
       const customTabbarDistPath = this.getDistFilePath(customTabbarPath)
       this.copyFileToTaro(customTabbarPath, customTabbarDistPath)
-      printLog(processTypeEnum.COPY, '自定义 TabBar', this.generateShowPath(customTabbarDistPath))
+      this.printLog(processTypeEnum.COPY, '自定义 TabBar', this.generateShowPath(customTabbarDistPath))
     }
   }
 
@@ -617,11 +664,13 @@ ${code}
           throw new Error(`页面 ${page} 没有 JS 文件！`)
         }
         const param: ITaroizeOptions = {}
-        printLog(processTypeEnum.CONVERT, '页面文件', this.generateShowPath(pageJSPath))
+        this.printLog(processTypeEnum.CONVERT, '页面文件', this.generateShowPath(pageJSPath))
+        this.setErrorCollector(processTypeEnum.CONVERT, this.generateShowPath(pageJSPath), '页面文件')
 
         let pageConfig
         if (fs.existsSync(pageConfigPath)) {
-          printLog(processTypeEnum.CONVERT, '页面配置', this.generateShowPath(pageConfigPath))
+          this.printLog(processTypeEnum.CONVERT, '页面配置', this.generateShowPath(pageConfigPath))
+          // this.setErrorCollector(processTypeEnum.COPY, this.generateShowPath(this.entryStylePath), 'JS 文件')
           const pageConfigStr = String(fs.readFileSync(pageConfigPath))
           pageConfig = JSON.parse(pageConfigStr)
         } else if (this.entryUsingComponents) {
@@ -670,12 +719,12 @@ ${code}
 
         param.script = String(fs.readFileSync(pageJSPath))
         if (fs.existsSync(pageTemplPath)) {
-          printLog(processTypeEnum.CONVERT, '页面模板', this.generateShowPath(pageTemplPath))
+          this.printLog(processTypeEnum.CONVERT, '页面模板', this.generateShowPath(pageTemplPath))
           param.wxml = String(fs.readFileSync(pageTemplPath))
         }
         let pageStyle: string | null = null
         if (fs.existsSync(pageStylePath)) {
-          printLog(processTypeEnum.CONVERT, '页面样式', this.generateShowPath(pageStylePath))
+          this.printLog(processTypeEnum.CONVERT, '页面样式', this.generateShowPath(pageStylePath))
           pageStyle = String(fs.readFileSync(pageStylePath))
         }
         param.path = path.dirname(pageJSPath)
@@ -695,14 +744,14 @@ ${code}
         const jsCode = generateMinimalEscapeCode(ast)
         this.writeFileToTaro(this.getComponentDest(pageDistJSPath), this.formatFile(jsCode, taroizeResult.template))
         this.writeFileToConfig(pageDistJSPath, param.json)
-        printLog(processTypeEnum.GENERATE, '页面文件', this.generateShowPath(pageDistJSPath))
+        this.printLog(processTypeEnum.GENERATE, '页面文件', this.generateShowPath(pageDistJSPath))
         if (pageStyle) {
           this.traverseStyle(pageStylePath, pageStyle)
         }
         this.generateScriptFiles(scriptFiles)
         this.traverseComponents(depComponents)
       } catch (err) {
-        printLog(processTypeEnum.ERROR, '页面转换', this.generateShowPath(pageJSPath))
+        this.printLog(processTypeEnum.ERROR, '页面转换', this.generateShowPath(pageJSPath))
         console.log(err)
       }
     })
@@ -729,9 +778,9 @@ ${code}
         if (!fs.existsSync(componentJSPath)) {
           throw new Error(`组件 ${component} 没有 JS 文件！`)
         }
-        printLog(processTypeEnum.CONVERT, '组件文件', this.generateShowPath(componentJSPath))
+        this.printLog(processTypeEnum.CONVERT, '组件文件', this.generateShowPath(componentJSPath))
         if (fs.existsSync(componentConfigPath)) {
-          printLog(processTypeEnum.CONVERT, '组件配置', this.generateShowPath(componentConfigPath))
+          this.printLog(processTypeEnum.CONVERT, '组件配置', this.generateShowPath(componentConfigPath))
           const componentConfigStr = String(fs.readFileSync(componentConfigPath))
           const componentConfig = JSON.parse(componentConfigStr)
           const componentUsingComponnets = componentConfig.usingComponents
@@ -753,13 +802,8 @@ ${code}
         }
         param.script = String(fs.readFileSync(componentJSPath))
         if (fs.existsSync(componentTemplPath)) {
-          printLog(processTypeEnum.CONVERT, '组件模板', this.generateShowPath(componentTemplPath))
+          this.printLog(processTypeEnum.CONVERT, '组件模板', this.generateShowPath(componentTemplPath))
           param.wxml = String(fs.readFileSync(componentTemplPath))
-        }
-        let componentStyle: string | null = null
-        if (fs.existsSync(componentStylePath)) {
-          printLog(processTypeEnum.CONVERT, '组件样式', this.generateShowPath(componentStylePath))
-          componentStyle = String(fs.readFileSync(componentStylePath))
         }
         param.path = path.dirname(componentJSPath)
         param.rootPath = this.root
@@ -767,6 +811,11 @@ ${code}
           ...param,
           framework: this.framework
         })
+        let componentStyle: string | null = null
+        if (fs.existsSync(componentStylePath)) {
+          this.printLog(processTypeEnum.CONVERT, '组件样式', this.generateShowPath(componentStylePath))
+          componentStyle = String(fs.readFileSync(componentStylePath))
+        }
         const { ast, scriptFiles } = this.parseAst({
           ast: taroizeResult.ast,
           sourceFilePath: componentJSPath,
@@ -779,14 +828,14 @@ ${code}
         })
         const jsCode = generateMinimalEscapeCode(ast)
         this.writeFileToTaro(this.getComponentDest(componentDistJSPath), this.formatFile(jsCode, taroizeResult.template))
-        printLog(processTypeEnum.GENERATE, '组件文件', this.generateShowPath(componentDistJSPath))
+        this.printLog(processTypeEnum.GENERATE, '组件文件', this.generateShowPath(componentDistJSPath))
         if (componentStyle) {
           this.traverseStyle(componentStylePath, componentStyle)
         }
         this.generateScriptFiles(scriptFiles)
         this.traverseComponents(depComponents)
       } catch (err) {
-        printLog(processTypeEnum.ERROR, '组件转换', this.generateShowPath(componentJSPath))
+        this.printLog(processTypeEnum.ERROR, '组件转换', this.generateShowPath(componentJSPath), err)
         console.log(err)
       }
     })
@@ -824,11 +873,11 @@ ${code}
         const destDir = path.dirname(destPath)
 
         if (!fs.existsSync(originPath)) {
-          printLog(processTypeEnum.WARNING, '静态资源', `找不到资源：${originPath}`)
+          this.printLog(processTypeEnum.WARNING, '静态资源', `找不到资源：${originPath}`)
         } else if (!fs.existsSync(destPath)) {
           fs.ensureDirSync(destDir)
           fs.copyFile(originPath, destPath)
-          printLog(processTypeEnum.COPY, '样式资源', this.generateShowPath(destPath))
+          this.printLog(processTypeEnum.COPY, '样式资源', this.generateShowPath(destPath))
         }
       }
 
@@ -915,19 +964,19 @@ ${code}
         spaces: 2,
         EOL: '\n'
       })
-      printLog(processTypeEnum.GENERATE, '文件', this.generateShowPath(path.join(configDir, 'index.js')))
-      printLog(processTypeEnum.GENERATE, '文件', this.generateShowPath(path.join(configDir, 'dev.js')))
-      printLog(processTypeEnum.GENERATE, '文件', this.generateShowPath(path.join(configDir, 'prod.js')))
-      printLog(processTypeEnum.GENERATE, '文件', this.generateShowPath(pkgPath))
-      printLog(
+      this.printLog(processTypeEnum.GENERATE, '文件', this.generateShowPath(path.join(configDir, 'index.js')))
+      this.printLog(processTypeEnum.GENERATE, '文件', this.generateShowPath(path.join(configDir, 'dev.js')))
+      this.printLog(processTypeEnum.GENERATE, '文件', this.generateShowPath(path.join(configDir, 'prod.js')))
+      this.printLog(processTypeEnum.GENERATE, '文件', this.generateShowPath(pkgPath))
+      this.printLog(
         processTypeEnum.GENERATE,
         '文件',
         this.generateShowPath(path.join(this.convertRoot, 'project.config.json'))
       )
-      printLog(processTypeEnum.GENERATE, '文件', this.generateShowPath(path.join(this.convertRoot, '.gitignore')))
-      printLog(processTypeEnum.GENERATE, '文件', this.generateShowPath(path.join(this.convertRoot, '.editorconfig')))
-      printLog(processTypeEnum.GENERATE, '文件', this.generateShowPath(path.join(this.convertRoot, '.eslintrc')))
-      printLog(processTypeEnum.GENERATE, '文件', this.generateShowPath(path.join(this.convertDir, 'index.html')))
+      this.printLog(processTypeEnum.GENERATE, '文件', this.generateShowPath(path.join(this.convertRoot, '.gitignore')))
+      this.printLog(processTypeEnum.GENERATE, '文件', this.generateShowPath(path.join(this.convertRoot, '.editorconfig')))
+      this.printLog(processTypeEnum.GENERATE, '文件', this.generateShowPath(path.join(this.convertRoot, '.eslintrc')))
+      this.printLog(processTypeEnum.GENERATE, '文件', this.generateShowPath(path.join(this.convertDir, 'index.html')))
       this.showLog()
     })
   }
@@ -939,6 +988,15 @@ ${code}
         'taroConvert'
       )} 目录下使用 npm 或者 yarn 安装项目依赖后再运行！`
     )
+  }
+
+  getError () {
+    console.log(errorCollector)
+  }
+
+  printLog (type, msg: string, url: string, msgDetail?: string) {
+    printLog(type as any, msg, url)
+    this.setErrorCollector(type, url, msg, msgDetail)
   }
 
   run () {
